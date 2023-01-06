@@ -1,3 +1,7 @@
+//This script has been Licenced by Master(D) under http://creativecommons.org/licenses/by-nc-nd/3.0/
+//All Rights of this script is the owner of Master(D).
+
+//Includes:
 #include <sourcemod>
 #include <sdktools>
 #include <events>
@@ -11,8 +15,15 @@ static  MaxSpawns = 64;
 //数据
 int PNum[25];
 int geter;
-int Team;
-
+int PlayerNum;
+int Survial;
+int Tsur;
+int CTsur;
+int Attack;
+int Died;
+int KillEarn;
+int Dieddown;
+char Buffer[64];
 //Spawns:
 static Float:SpawnPoints[MAXPLAYERS + 1][2][3];
 static bool:ValidSpawn[MAXPLAYERS + 1][2];
@@ -65,8 +76,8 @@ public OnPluginStart()
 	//Event:
     HookEvent("round_start", round_start);
     HookEvent("round_mvp", mvp_plus);
-	HookEvent("round_end", mvp_minus)
-
+	HookEvent("round_end", mvp_minus);
+    HookEvent("player_death", round_tie);
 }
 
 
@@ -128,7 +139,7 @@ public Action:mvp_minus(Event event, const char[] name, bool dontBroadcast)
 	if(geter > 0)
 	{
 	int MVP = CS_GetMVPCount(geter);
-	int NewMvp = MVP-1;
+	int NewMvp = MVP - 1;
     CS_SetMVPCount(geter, NewMvp)
 	}
 }
@@ -153,6 +164,44 @@ public Action:round_start(Event event, const char[] name, bool dontBroadcast)
 	}
 	
 }
+//回合结束的事件，双方平局
+public Action:round_tie(Event event, const char[] name, bool dontBroadcast)
+{
+	PlayerNum = (GetTeamClientCount(2) + GetTeamClientCount(3))
+    CTsur = GetTeamEntity(3);
+	Tsur = GetTeamEntity(2);
+    Died = GetClientOfUserId(GetEventInt(event, "userid"));
+    Attack = GetClientOfUserId(GetEventInt(event, "attacker"));
+	Survial = (GetTeamEntity(2) + GetTeamEntity(3));
+    if(Died == 0 || Attack == 0)
+	{
+		return Plugin_Continue;
+	}
+	//加分减分
+	if ((CS_GetMVPCount(Died)) > 1 && (!Died == Attack))
+	{
+	    Dieddown = (CS_GetMVPCount(Died) - 1);
+		KillEarn = (CS_GetMVPCount(Attack) + 1);
+		return Plugin_Continue;
+	}
+    else if(Died == Attack)
+	{
+		PrintToChat(Died, "你自杀了，不会有分数变化");
+		return Plugin_Continue;
+	}
+
+    //结束回合
+	if((PlayerNum % 2) == 0 && PlayerNum > 0)
+	{
+	    if((2 * Survial) == PlayerNum)
+		CS_TerminateRound(3.0, CSRoundEnd_Draw, false)
+	}
+	else if((PlayerNum % 2) == 1 && PlayerNum > 0)
+	{
+        if((4 * (CTsur + 1)) == PlayerNum || (4 * (Tsur + 1)) == PlayerNum)
+        CS_TerminateRound(3.0, CSRoundEnd_Draw, false)
+	}
+}
 
 public InitSpawnPos(Client, MVPC)
 {
@@ -175,16 +224,17 @@ public InitSpawnPos(Client, MVPC)
 		//Initulize:
 		Type = 0;
 	}
-
+    Format(Buffer, 64, "| %d 竞技场|", MVPC);
 	//Spawn:
 	OneByOneSpawn(Client, Type, MVPC);
-
+	//设置标签
+    CS_SetClientClanTag(Client, Buffer);
 }
 
 //复活:
 public Action:OneByOneSpawn(Client, SpawnType, MVPCount)
-{
-	TeleportEntity(Client, SpawnPoints[MVPCount][SpawnType], NULL_VECTOR, NULL_VECTOR);
+{   
+	TeleportEntity(Client, SpawnPoints[(13-MVPCount)][SpawnType], NULL_VECTOR, NULL_VECTOR);
 }
 /*
 ————————————————————这下面所有代码请不要修改——————————————————————
