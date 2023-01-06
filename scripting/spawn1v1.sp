@@ -13,7 +13,6 @@
 static  MaxSpawns = 64;
 
 //数据
-int PNum[25];
 int geter;
 int PlayerNum;
 int Survial;
@@ -24,6 +23,13 @@ int Died;
 int KillEarn;
 int Dieddown;
 char Buffer[64];
+int PMVP;
+int CTPLAYER[12];
+int TPLAYER[12];
+
+int COUNT_T;
+int COUNT_CT;
+
 //Spawns:
 static Float:SpawnPoints[MAXPLAYERS + 1][2][3];
 static bool:ValidSpawn[MAXPLAYERS + 1][2];
@@ -70,13 +76,18 @@ public OnPluginStart()
 	//Initulize:
 	MaxSpawns = MaxClients;
 
+	//初始化数组值
+    for(int i = 0; i < 12; i++)
+	{
+       TPLAYER[i] = i;
+	   CTPLAYER[i] = i;
+	}
 	//Timer:
 	CreateTimer(0.1, CreateSQLdbSpawnPoints);
 
 	//Event:
     HookEvent("round_start", round_start);
-    HookEvent("round_mvp", mvp_plus);
-	HookEvent("round_end", mvp_minus);
+
     HookEvent("player_death", round_tie);
 }
 
@@ -118,52 +129,36 @@ public ResetSpawns()
 		}
 	}
 }
-//开始时设置MVP
-public void OnClientPutInServer(int client)
-{
-    if(!IsFakeClient(client))
-	{   
-		if(GetClientTeam(client) == 2 || GetClientTeam(client) == 3)
-		CS_SetMVPCount(client, 1);
-	}
 
-}
-//获取回合MVP的获得者
-public Action:mvp_plus(Event event, const char[] name, bool dontBroadcast)
-{
-    geter = GetClientUserId(GetEventInt(event, "userid"))
-}
+//开始时设置标识
+
 //回合结束减去这人获得的MVP
-public Action:mvp_minus(Event event, const char[] name, bool dontBroadcast)
-{   
-	if(geter > 0)
-	{
-	int MVP = CS_GetMVPCount(geter);
-	int NewMvp = MVP - 1;
-    CS_SetMVPCount(geter, NewMvp)
-	}
-}
-//玩家重生事件，判断是否为人机 并且传送 限制在12人一下时只能去T方
+
+//玩家重生事件，判断是否为人机 并且传送
 public Action:round_start(Event event, const char[] name, bool dontBroadcast) 
 {
-	int NNN = GetClientCount(true);
-	int PMVP;
-	for (int C = 1 ; C <= NNN ; C++)
-	{
-    PNum[C] = GetClientUserId(C);
-	}
-    
-    for (int i = 1; i <= NNN; i++)
+
+	COUNT_T = GetTeamClientCount(2);
+	COUNT_CT =  GetTeamClientCount(3);
+
+    for (int i = 1; i <= 25; i++)
     {
-		if(IsClientInGame(i) && !IsFakeClient(i))
+		if(IsClientConnected(i) && !IsFakeClient(i) && IsClientInGame(i))
 		{
-		PMVP = CS_GetMVPCount(i)
-	    InitSpawnPos(i, PMVP);
-	    PrintToConsole(i,"传送成功");
+	 		InitSpawnPos(i, COUNT_T, COUNT_CT);
+	 		PrintToConsole(i,"传送成功");
+			if(GetClientTeam(i) == 2)
+			{
+				COUNT_T--;
+			}
+			else
+			{
+				COUNT_CT--;
+			}
         }
 	}
-	
 }
+
 //回合结束的事件，双方平局
 public Action:round_tie(Event event, const char[] name, bool dontBroadcast)
 {
@@ -173,21 +168,20 @@ public Action:round_tie(Event event, const char[] name, bool dontBroadcast)
     Died = GetClientOfUserId(GetEventInt(event, "userid"));
     Attack = GetClientOfUserId(GetEventInt(event, "attacker"));
 	Survial = (GetTeamEntity(2) + GetTeamEntity(3));
+
     if(Died == 0 || Attack == 0)
 	{
 		return Plugin_Continue;
 	}
-	//加分减分
-	if ((CS_GetMVPCount(Died)) > 1 && (!Died == Attack))
+
+	if(Died == Attack)
 	{
-	    Dieddown = (CS_GetMVPCount(Died) - 1);
-		KillEarn = (CS_GetMVPCount(Attack) + 1);
-		return Plugin_Continue;
+		PrintToChat(Died, "你自杀了");
 	}
-    else if(Died == Attack)
+    if(Died != Attack)
 	{
-		PrintToChat(Died, "你自杀了，不会有分数变化");
-		return Plugin_Continue;
+		ForcePlayerSuicide(Attack);
+		PrintToChat(Attack, "你赢了，但是你还是得死，去看别人吧");
 	}
 
     //结束回合
@@ -202,40 +196,43 @@ public Action:round_tie(Event event, const char[] name, bool dontBroadcast)
         CS_TerminateRound(3.0, CSRoundEnd_Draw, false)
 	}
 }
-
-public InitSpawnPos(Client, MVPC)
+//重生函数
+public InitSpawnPos(Client, COUNT_T, COUNT_CT)
 {
-
 	//Get Job Type:
 	new Type;
 
-	//Check:
+	//检查队伍
 	if(GetClientTeam(Client) == 2)
 	{
 
-		//Initulize:
+		//宣告:
 		Type = 1;
-	}
+		OneByOneSpawn(Client, Type, COUNT_T);
+		
 
-	//Override:
+	}
 	else
 	{
 
-		//Initulize:
+		//宣告:
 		Type = 0;
+		OneByOneSpawn(Client, Type, COUNT_CT);
+		COUNT_T--;
 	}
-    Format(Buffer, 64, "| %d 竞技场|", MVPC);
-	//Spawn:
-	OneByOneSpawn(Client, Type, MVPC);
+
+
+}
+
+//传送:
+public Action:OneByOneSpawn(Client, SpawnType, COUNT)
+{   
+	TeleportEntity(Client, SpawnPoints[COUNT][SpawnType], NULL_VECTOR, NULL_VECTOR);
 	//设置标签
+	Format(Buffer, 64, "| %d 竞技场|", COUNT);
     CS_SetClientClanTag(Client, Buffer);
 }
 
-//复活:
-public Action:OneByOneSpawn(Client, SpawnType, MVPCount)
-{   
-	TeleportEntity(Client, SpawnPoints[(13-MVPCount)][SpawnType], NULL_VECTOR, NULL_VECTOR);
-}
 /*
 ————————————————————这下面所有代码请不要修改——————————————————————
 */
