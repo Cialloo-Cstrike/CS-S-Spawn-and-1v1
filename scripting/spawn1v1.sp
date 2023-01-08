@@ -6,6 +6,7 @@
 #include <sdktools>
 #include <events>
 #include <cstrike>
+#include <morecolors>
 //初始化堆栈内存大小
 #pragma dynamic 131072
 
@@ -13,20 +14,14 @@
 static  MaxSpawns = 64;
 
 //数据
-int geter;
 int PlayerNum;
-int Survial;
-int Tsur;
-int CTsur;
 int Attack;
 int Died;
-int KillEarn;
-int Dieddown;
 char Buffer[64];
-int PMVP;
+char ChatC[128];
 int CTPLAYER[12];
 int TPLAYER[12];
-
+int Alive[2];
 int COUNT_T;
 int COUNT_CT;
 
@@ -43,8 +38,8 @@ static Handle:hDataBase = INVALID_HANDLE;
 //Plugin Info:
 public Plugin:myinfo =
 {
-	name = "SQL Spawn System",
-	author = "Master(D)(Fix by Cialloo & Sparkle)",
+	name = "Spawn By SQLite And Multi-1V1",
+	author = "Master(D)(Fix and Add Multi-1v1 by Cialloo & Sparkle)",
 	description = "respawns players with MySQL Saving",
 	version = MAINVERSION,
 	url = ""
@@ -82,6 +77,9 @@ public OnPluginStart()
        TPLAYER[i] = i;
 	   CTPLAYER[i] = i;
 	}
+	Alive[0] = 0;
+	Alive[1] = 0;
+
 	//Timer:
 	CreateTimer(0.1, CreateSQLdbSpawnPoints);
 
@@ -130,10 +128,6 @@ public ResetSpawns()
 	}
 }
 
-//开始时设置标识
-
-//回合结束减去这人获得的MVP
-
 //玩家重生事件，判断是否为人机 并且传送
 public Action:round_start(Event event, const char[] name, bool dontBroadcast) 
 {
@@ -146,7 +140,7 @@ public Action:round_start(Event event, const char[] name, bool dontBroadcast)
 		if(IsClientConnected(i) && !IsFakeClient(i) && IsClientInGame(i))
 		{
 	 		InitSpawnPos(i, COUNT_T, COUNT_CT);
-	 		PrintToConsole(i,"传送成功");
+	 		PrintToConsole(i,"[Multi-1v1]传送成功");
 			if(GetClientTeam(i) == 2)
 			{
 				COUNT_T--;
@@ -162,13 +156,11 @@ public Action:round_start(Event event, const char[] name, bool dontBroadcast)
 //回合结束的事件，双方平局
 public Action:round_tie(Event event, const char[] name, bool dontBroadcast)
 {
-	PlayerNum = (GetTeamClientCount(2) + GetTeamClientCount(3))
-    CTsur = GetTeamEntity(3);
-	Tsur = GetTeamEntity(2);
+	PlayerNum = (GetTeamClientCount(2) + GetTeamClientCount(3));
     Died = GetClientOfUserId(GetEventInt(event, "userid"));
     Attack = GetClientOfUserId(GetEventInt(event, "attacker"));
-	Survial = (GetTeamEntity(2) + GetTeamEntity(3));
 
+    
     if(Died == 0 || Attack == 0)
 	{
 		return Plugin_Continue;
@@ -176,26 +168,55 @@ public Action:round_tie(Event event, const char[] name, bool dontBroadcast)
 
 	if(Died == Attack)
 	{
-		PrintToChat(Died, "你自杀了");
+		CPrintToChat(Died, "{green}[Multi-1v1]{lightgreen}你自杀了");
+		CPrintToChat(Died, "{green}[Multi-1v1]{lightgreen}你输了");
 	}
     if(Died != Attack)
 	{
-		ForcePlayerSuicide(Attack);
-		PrintToChat(Attack, "你赢了，但是你还是得死，去看别人吧");
+		CPrintToChat(Attack, "{green}[Multi-1v1]{lightgreen}你赢了, 如果想要观看别人请控制台输入KILL");
+	    CPrintToChat(Died, "{green}[Multi-1v1]{lightgreen}你输了");
 	}
 
+	for(int B = 1; B <= PlayerNum; B++)
+	{
+		if(IsPlayerAlive(B))
+		{
+			if(GetClientTeam(B) == 2)
+			{
+				Alive[0]++;
+			}
+			else if(GetClientTeam(B) == 3)
+			{
+				Alive[1]++;
+			}
+		}
+	}
     //结束回合
 	if((PlayerNum % 2) == 0 && PlayerNum > 0)
 	{
-	    if((2 * Survial) == PlayerNum)
-		CS_TerminateRound(3.0, CSRoundEnd_Draw, false)
+	    if((2 * (Alive[0] + Alive[1])) == PlayerNum)
+		{
+		CS_TerminateRound(3.0, CSRoundEnd_Draw, false);
+		}
 	}
-	else if((PlayerNum % 2) == 1 && PlayerNum > 0)
+	else if((PlayerNum % 2) == 1 && PlayerNum >= 4)
 	{
-        if((4 * (CTsur + 1)) == PlayerNum || (4 * (Tsur + 1)) == PlayerNum)
-        CS_TerminateRound(3.0, CSRoundEnd_Draw, false)
+        if((4 * (Alive[1] + 1)) == PlayerNum || (4 * (Alive[0]+ 1)) == PlayerNum)
+		{
+        CS_TerminateRound(3.0, CSRoundEnd_Draw, false);
+	    }
 	}
+	else if((PlayerNum % 2) == 1 && PlayerNum == 3)
+	{
+		if((4 * (Alive[1] + 1)) == (PlayerNum + 1) || (4 * (Alive[0]+ 1)) == (PlayerNum + 1))
+		{
+        CS_TerminateRound(3.0, CSRoundEnd_Draw, false);
+	    }
+	}
+	Alive[0] = 0;
+	Alive[1] = 0;
 }
+
 //重生函数
 public InitSpawnPos(Client, COUNT_T, COUNT_CT)
 {
@@ -218,7 +239,7 @@ public InitSpawnPos(Client, COUNT_T, COUNT_CT)
 		//宣告:
 		Type = 0;
 		OneByOneSpawn(Client, Type, COUNT_CT);
-		COUNT_T--;
+
 	}
 
 
@@ -231,6 +252,8 @@ public Action:OneByOneSpawn(Client, SpawnType, COUNT)
 	//设置标签
 	Format(Buffer, 64, "| %d 竞技场|", COUNT);
     CS_SetClientClanTag(Client, Buffer);
+	Format(ChatC, 128, "{green}[Multi-1v1]{lightgreen}你现在位于 {gold}%d{lightgreen}竞技场中", COUNT);
+	CPrintToChat(Client, ChatC);
 }
 
 /*
