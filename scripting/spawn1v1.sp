@@ -1,5 +1,4 @@
-//This script has been Licenced by Master(D) under http://creativecommons.org/licenses/by-nc-nd/3.0/
-//All Rights of this script is the owner of Master(D).
+//此插件1v1功能由Sparkle编写 数据库功能由Cialloo(达达)修复
 
 //Includes:
 #include <sourcemod>
@@ -7,30 +6,35 @@
 #include <events>
 #include <cstrike>
 #include <morecolors>
+#include <float>
+#include <smlib/math>
 //初始化堆栈内存大小
 #pragma dynamic 131072
 
 //Misc:
 static  MaxSpawns = 64;
-
 //数据
-int PlayerNum;
 int Attack;
 int Died;
 char Buffer[64];
 char ChatC[128];
-int CTPLAYER[12];
 int TPLAYER[12];
-int Alive[2];
+int CTPLAYER[12];
 int COUNT_T;
 int COUNT_CT;
+int arrayT[12];
+int arrayCT[12];
+int TPlus;
+int CTPlus;
+int Death = 1;
+int Times;
 
 //Spawns:
 static Float:SpawnPoints[MAXPLAYERS + 1][2][3];
 static bool:ValidSpawn[MAXPLAYERS + 1][2];
 
 //Definitions:
-#define MAINVERSION		"1.00.24"
+#define MAINVERSION		"1.0"
 
 //Database Sql:
 static Handle:hDataBase = INVALID_HANDLE;
@@ -38,9 +42,9 @@ static Handle:hDataBase = INVALID_HANDLE;
 //Plugin Info:
 public Plugin:myinfo =
 {
-	name = "Spawn By SQLite And Multi-1V1",
-	author = "Master(D)(Fix and Add Multi-1v1 by Cialloo & Sparkle)",
-	description = "respawns players with MySQL Saving",
+	name = "Multi-1V1",
+	author = "Cialloo & Sparkle)",
+	description = "Using SQL save the spawnpoints and multi-1v1",
 	version = MAINVERSION,
 	url = ""
 };
@@ -72,21 +76,20 @@ public OnPluginStart()
 	MaxSpawns = MaxClients;
 
 	//初始化数组值
-    for(int i = 0; i < 12; i++)
+	for(int i = 0; i < 12; i++)
 	{
-       TPLAYER[i] = i;
-	   CTPLAYER[i] = i;
+	CTPLAYER[i] = i;
+	TPLAYER[i] = i;
 	}
-	Alive[0] = 0;
-	Alive[1] = 0;
 
 	//Timer:
 	CreateTimer(0.1, CreateSQLdbSpawnPoints);
 
-	//Event:
-    HookEvent("round_start", round_start);
 
-    HookEvent("player_death", round_tie);
+	//Event:
+	HookEvent("round_start", round_start);
+
+	HookEvent("player_death", round_tie);
 }
 
 
@@ -96,6 +99,13 @@ public OnMapStart()
 
 	//SQL Load:
 	CreateTimer(0.4, LoadSpawnPoints);
+	// Reset the array at the beginning of each map
+	for (int i = 0; i < 12; i++) 
+	{
+		arrayT[i] = 0;
+		arrayCT[i] = 0;
+    }
+
 }
 
 //Initation:
@@ -131,106 +141,59 @@ public ResetSpawns()
 //玩家重生事件，判断是否为人机 并且传送
 public Action:round_start(Event event, const char[] name, bool dontBroadcast) 
 {
-
+	//数据
 	COUNT_T = GetTeamClientCount(2);
 	COUNT_CT =  GetTeamClientCount(3);
+  	TPlus = 0;
+	CTPlus = 0;
+	Times = ((GetTeamClientCount(2) + GetTeamClientCount(3)) / 2);
 
-    for (int i = 1; i <= 25; i++)
+	//传送循环
+	for (int i = 0; i < COUNT_T; i++)
+	{
+        arrayT[i] = i;
+
+
+    }
+	for (int i = 0; i < COUNT_CT; i++) 
+	{
+        arrayCT[i] = i;
+
+		
+    }
+	for (int i = 1; i <= 25; i++)
     {
 		if(IsClientConnected(i) && !IsFakeClient(i) && IsClientInGame(i))
 		{
-	 		InitSpawnPos(i, COUNT_T, COUNT_CT);
 	 		PrintToConsole(i,"[Multi-1v1]传送成功");
 			if(GetClientTeam(i) == 2)
 			{
-				COUNT_T--;
+				InitSpawnPos(i, (arrayT[i]));
+
 			}
-			else
+			else if(GetClientTeam(i) == 3)
 			{
-				COUNT_CT--;
+				InitSpawnPos(i, (arrayCT[i]));
+
 			}
         }
 	}
 }
 
-//回合结束的事件，双方平局
-public Action:round_tie(Event event, const char[] name, bool dontBroadcast)
-{
-	PlayerNum = (GetTeamClientCount(2) + GetTeamClientCount(3));
-    Died = GetClientOfUserId(GetEventInt(event, "userid"));
-    Attack = GetClientOfUserId(GetEventInt(event, "attacker"));
-
-    
-    if(Died == 0 || Attack == 0)
-	{
-		return Plugin_Continue;
-	}
-
-	if(Died == Attack)
-	{
-		CPrintToChat(Died, "{green}[Multi-1v1]{lightgreen}你自杀了");
-		CPrintToChat(Died, "{green}[Multi-1v1]{lightgreen}你输了");
-	}
-    if(Died != Attack)
-	{
-		CPrintToChat(Attack, "{green}[Multi-1v1]{lightgreen}你赢了, 如果想要观看别人请控制台输入KILL");
-	    CPrintToChat(Died, "{green}[Multi-1v1]{lightgreen}你输了");
-	}
-
-	for(int B = 1; B <= PlayerNum; B++)
-	{
-		if(IsPlayerAlive(B))
-		{
-			if(GetClientTeam(B) == 2)
-			{
-				Alive[0]++;
-			}
-			else if(GetClientTeam(B) == 3)
-			{
-				Alive[1]++;
-			}
-		}
-	}
-    //结束回合
-	if((PlayerNum % 2) == 0 && PlayerNum > 0)
-	{
-	    if((2 * (Alive[0] + Alive[1])) == PlayerNum)
-		{
-		CS_TerminateRound(3.0, CSRoundEnd_Draw, false);
-		}
-	}
-	else if((PlayerNum % 2) == 1 && PlayerNum >= 4)
-	{
-        if((4 * (Alive[1] + 1)) == PlayerNum || (4 * (Alive[0]+ 1)) == PlayerNum)
-		{
-        CS_TerminateRound(3.0, CSRoundEnd_Draw, false);
-	    }
-	}
-	else if((PlayerNum % 2) == 1 && PlayerNum == 3)
-	{
-		if((4 * (Alive[1] + 1)) == (PlayerNum + 1) || (4 * (Alive[0]+ 1)) == (PlayerNum + 1))
-		{
-        CS_TerminateRound(3.0, CSRoundEnd_Draw, false);
-	    }
-	}
-	Alive[0] = 0;
-	Alive[1] = 0;
-}
-
 //重生函数
-public InitSpawnPos(Client, COUNT_T, COUNT_CT)
+public InitSpawnPos(Client, COUNT)
 {
 	//Get Job Type:
 	new Type;
-
+    
 	//检查队伍
 	if(GetClientTeam(Client) == 2)
 	{
 
 		//宣告:
 		Type = 1;
-		OneByOneSpawn(Client, Type, COUNT_T);
-		
+		OneByOneSpawn(Client, Type, (arrayT[TPlus]));
+		++TPlus;
 
 	}
 	else
@@ -238,8 +201,8 @@ public InitSpawnPos(Client, COUNT_T, COUNT_CT)
 
 		//宣告:
 		Type = 0;
-		OneByOneSpawn(Client, Type, COUNT_CT);
-
+		OneByOneSpawn(Client, Type, (arrayCT[CTPlus]));
+		++CTPlus;
 	}
 
 
@@ -251,9 +214,58 @@ public Action:OneByOneSpawn(Client, SpawnType, COUNT)
 	TeleportEntity(Client, SpawnPoints[COUNT][SpawnType], NULL_VECTOR, NULL_VECTOR);
 	//设置标签
 	Format(Buffer, 64, "| %d 竞技场|", COUNT);
-    CS_SetClientClanTag(Client, Buffer);
-	Format(ChatC, 128, "{green}[Multi-1v1]{lightgreen}你现在位于 {gold}%d{lightgreen}竞技场中", COUNT);
+	CS_SetClientClanTag(Client, Buffer);
+	Format(ChatC, 128, "{green}[Multi-1v1]{lightgreen}你现在位于 {gold}%d {lightgreen}竞技场中", COUNT);
 	CPrintToChat(Client, ChatC);
+}
+
+//回合结束的事件，双方平局
+public Action:round_tie(Event event, const char[] name, bool dontBroadcast)
+{
+
+	//下面那个函数所用的数值
+	Died = GetClientOfUserId(GetEventInt(event, "userid"));
+	Attack = GetClientOfUserId(GetEventInt(event, "attacker"));
+
+    //被杀者与杀手之间的信息打印 且包括击杀次数的上涨
+	if(Died == 0 || Attack == 0)
+	{
+		Death++;
+		return Plugin_Continue;
+	}
+
+	if(Died == Attack)
+	{
+		CPrintToChat(Died, "{green}[Multi-1v1]{lightgreen}你自杀了");
+		return Plugin_Continue;
+	}
+	if(Died != Attack)
+	{
+		CPrintToChat(Attack, "{green}[Multi-1v1]{lightgreen}你赢了, 如果想要观看别人请控制台输入KILL");
+		CPrintToChat(Died, "{green}[Multi-1v1]{lightgreen}你输了");
+		Death++;
+		return Plugin_Continue;
+	}
+    //结束回合
+	if(Death >= Times)
+	{
+		CS_TerminateRound(1.0, CSRoundEnd_Draw, false);
+		return Plugin_Continue;
+	}
+
+}
+
+//回合结束重置所有数组和某些特殊数据
+public void OnRoundEnd() {
+    // Reset the array at the end of each round
+	for (int i = 0; i < 12; i++) 
+	{
+		arrayT[i] = 0;
+		arrayCT[i] = 0; 
+    }
+	//重置数据
+	Death = 0;
+	Times = 0;
 }
 
 /*
