@@ -26,7 +26,7 @@ int arrayT[12];
 int arrayCT[12];
 int TPlus;
 int CTPlus;
-int Death = 1;
+int Death = 0;
 int Times;
 
 //Spawns:
@@ -88,8 +88,8 @@ public OnPluginStart()
 
 	//Event:
 	HookEvent("round_start", round_start);
-
 	HookEvent("player_death", round_tie);
+	HookEvent("round_end", roundend);
 }
 
 
@@ -169,12 +169,10 @@ public Action:round_start(Event event, const char[] name, bool dontBroadcast)
 			if(GetClientTeam(i) == 2)
 			{
 				InitSpawnPos(i, (arrayT[(i-1)]));
-
 			}
 			else if(GetClientTeam(i) == 3)
 			{
 				InitSpawnPos(i, (arrayCT[(i-1)]));
-
 			}
         }
 	}
@@ -194,7 +192,6 @@ public InitSpawnPos(Client, COUNT)
 		Type = 1;
 		OneByOneSpawn(Client, Type, (arrayT[TPlus]));
 		++TPlus;
-
 	}
 	else
 	{
@@ -230,34 +227,36 @@ public Action:round_tie(Event event, const char[] name, bool dontBroadcast)
     //被杀者与杀手之间的信息打印 且包括击杀次数的上涨
 	if(Died == 0 || Attack == 0)
 	{
-		Death++;
-		return Plugin_Continue;
+		return Plugin_Continue
 	}
 
 	if(Died == Attack)
 	{
 		CPrintToChat(Died, "{green}[Multi-1v1]{lightgreen}你自杀了");
-		return Plugin_Continue;
 	}
 	if(Died != Attack)
 	{
 		CPrintToChat(Attack, "{green}[Multi-1v1]{lightgreen}你赢了, 如果想要观看别人请控制台输入KILL");
 		CPrintToChat(Died, "{green}[Multi-1v1]{lightgreen}你输了");
 		Death++;
-		return Plugin_Continue;
 	}
     //结束回合
+	PrintToServer("[Multi-1v1]目前服务器Death数量为%d", Death);
+	PrintToServer("[Multi-1v1]目前服务器Times数量为%d", Times);
 	if(Death >= Times)
 	{
+		PrintToServer("[Multi-1v1]目前Death数量为%d", Death);
+		PrintToServer("[Multi-1v1]目前Times数量为%d", Times);
 		CS_TerminateRound(1.0, CSRoundEnd_Draw, false);
-		return Plugin_Continue;
 	}
 
 }
 
 //回合结束重置所有数组和某些特殊数据
-public void OnRoundEnd() {
+public roundend(Event event, const char[] name, bool dontBroadcast)
+{
     // Reset the array at the end of each round
+	PrintToServer("[Multi-1v1]数组重置成功");
 	for (int i = 0; i < 12; i++) 
 	{
 		arrayT[i] = 0;
