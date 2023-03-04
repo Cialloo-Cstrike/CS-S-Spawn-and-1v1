@@ -66,6 +66,8 @@ public OnPluginStart()
 
 	RegAdminCmd("sm_spawnlistall", CommandListSpawnsAll, ADMFLAG_SLAY, " <No Args> Lists all the Spawns in the database");
 
+	RegConsoleCmd("kill", return Plugin_Handled, "恶意抢注");
+
 	//Setup Sql Connection:
 	initSQL();
 
