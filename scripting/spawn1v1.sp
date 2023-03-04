@@ -151,13 +151,13 @@ public Action:round_start(Event event, const char[] name, bool dontBroadcast)
 	//传送循环
 	for (int i = 0; i < COUNT_T; i++)
 	{
-        arrayT[i] = i;
+        arrayT[i] = i + 1;
 
 
     }
 	for (int i = 0; i < COUNT_CT; i++) 
 	{
-        arrayCT[i] = i;
+        arrayCT[i] = i + 1;
 
 		
     }
@@ -168,12 +168,12 @@ public Action:round_start(Event event, const char[] name, bool dontBroadcast)
 	 		PrintToConsole(i,"[Multi-1v1]传送成功");
 			if(GetClientTeam(i) == 2)
 			{
-				InitSpawnPos(i, (arrayT[i]));
+				InitSpawnPos(i, (arrayT[(i-1)]));
 
 			}
 			else if(GetClientTeam(i) == 3)
 			{
-				InitSpawnPos(i, (arrayCT[i]));
+				InitSpawnPos(i, (arrayCT[(i-1)]));
 
 			}
         }
